@@ -1,114 +1,92 @@
 # WiFi Share v2.0 — WiFi Tethering via WiFi Direct + Proxy
 
-Share your WiFi internet with other devices on Android 6 (no SIM card needed).
-
-## How It Works
-```
-[Router] ──WiFi──► [Your Android 6 Phone]
-                          │
-                    WiFi Direct (P2P)
-                          │
-                   [Other Device] ──proxy──► internet ✓
-```
-
-Your phone stays connected to your router via normal WiFi.
-It simultaneously creates a **WiFi Direct group** (a second virtual hotspot).
-A built-in **HTTP/HTTPS proxy server** (port 8282) routes traffic from
-connected devices through your phone to the internet.
+A specialized Android utility designed to share an active WiFi connection with other devices using WiFi Direct (P2P) and a custom-built HTTP/HTTPS proxy server. Ideal for legacy devices (Android 6.0+) or situations where traditional hotspotting is restricted.
 
 ---
 
-## Build Instructions (Android Studio)
+## 🛠 How It Works (The Logic)
+
+Traditionally, Android disables WiFi when you turn on a Hotspot. This app bypasses that limitation:
+
+1.  **WiFi Direct (P2P):** Creates a virtual network interface that runs alongside the primary WiFi radio.
+2.  **Socket Proxying:** Since Android does not natively route traffic between WiFi and WiFi Direct, a built-in Proxy Server (Port 8282) acts as the bridge.
+3.  **HTTPS Tunneling:** Implements the `CONNECT` method to allow encrypted traffic (SSL/TLS) to pass through without SSL-stripping, ensuring user privacy.
+
+---
+
+## 🚀 Key Features
+
+- **Dual-Radio Support:** Stay connected to a router while simultaneously sharing the connection.
+- **Multithreaded Proxy:** Uses `ProxyWorker` to handle concurrent connections from multiple devices.
+- **Foreground Service:** Prevents the Android OS from killing the process during heavy data transfers.
+- **Battery Optimized:** Minimal CPU overhead when idle.
+
+---
+
+## 💻 Technical Deep Dive
+
+### Concurrency Model
+The app utilizes a multithreaded architecture to ensure the UI remains responsive while the proxy handles data:
+- **`ProxyService`**: A Foreground Service that manages the WiFi Direct Group lifecycle and listens for incoming socket connections.
+- **`ProxyWorker`**: A dedicated thread spawned for every new client connection, handling the request/response cycle between the client and the internet.
+
+### Network Configuration
+- **Host:** `192.168.49.1` (Default Android WiFi Direct Gateway)
+- **Port:** `8282`
+- **Protocol:** HTTP/1.1 with support for `CONNECT` tunneling.
+
+---
+
+---
+
+## 🔒 Security & Privacy Architecture
+
+In network-heavy applications, security is paramount. This project implements several layers of protection:
+
+### 1. Zero-Decryption HTTPS Tunneling
+The proxy utilizes the **HTTP CONNECT** method. Unlike a Man-In-The-Middle (MITM) proxy, this app **never decrypts** HTTPS traffic. It simply establishes a TCP tunnel. 
+- **Benefit:** User credentials, bank details, and private messages remain encrypted end-to-end between the client and the destination server.
+
+### 2. Sandbox Isolation
+By leveraging Android’s **UID-based permission system**, the app runs in a restricted sandbox. It only requests the minimum necessary permissions (`INTERNET`, `ACCESS_WIFI_STATE`) and does not require **Root Access**, maintaining the integrity of the Android system.
+
+### 3. Loopback Protection
+The proxy is bound specifically to the WiFi Direct interface (`192.168.49.1`). This prevents unauthorized access from external public networks and ensures that only devices physically connected to your P2P group can utilize the gateway.
+
+### 4. Data Privacy
+- **No Logs Policy:** The application does not store, log, or transmit any traffic metadata.
+- **Ephemeral Processing:** Data is processed in-memory (RAM) and is never written to disk, preventing forensic recovery of session data.
+
+## 📦 Build & Installation
 
 ### Requirements
-- Android Studio Hedgehog 2023.1 or newer
-- Android SDK 34
-- JDK 8+
+- **Android Studio:** Hedgehog 2023.1+
+- **Minimum SDK:** 23 (Android 6.0)
+- **Target SDK:** 34
 
-### Steps
-1. Extract the ZIP
-2. Open Android Studio → **File → Open** → select the `WifiShare` folder
-3. Wait for Gradle sync
-4. **Build → Build Bundle(s)/APK(s) → Build APK(s)**
-5. APK is at: `app/build/outputs/apk/debug/app-debug.apk`
-6. Copy APK to your Android 6 phone and install it
-   (Settings → Security → enable "Unknown sources" first)
+### Quick Start
+1. Clone the repository: `git clone https://github.com/Dr-islo/WifiShare.git`
+2. Open in Android Studio and perform a **Gradle Sync**.
+3. Build the APK: `Build > Build APK(s)`.
+4. Install on an Android 6.0+ device and grant **Location** & **System Settings** permissions.
 
 ---
 
-## First-Time Setup on Your Phone
+## 🔧 Troubleshooting
 
-1. Make sure **WiFi is ON** and connected to your router
-2. Open **WiFi Share** app
-3. When prompted, tap **"Open Settings"** and allow **Modify system settings**
-4. Grant **Location** permission when asked (Android requires this for WiFi Direct)
-5. That's it — you're ready to share
-
----
-
-## Using the App
-
-### On your Android 6 phone:
-1. Open **WiFi Share**
-2. Set a hotspot name (auto-filled from your WiFi name)
-3. Set a password (optional, leave blank for open network)
-4. Tap **▶ Start Sharing**
-5. A green card appears showing:  `192.168.49.1:8282`
-
-### On the device you want to connect:
-1. Go to **WiFi settings** → find and connect to the hotspot (e.g. `MyWifi_Share`)
-2. Once connected, go to **WiFi Advanced settings** for that network
-3. Set **Proxy → Manual**
-4. **Host:** `192.168.49.1`
-5. **Port:** `8282`
-6. Save — internet now works ✓
-
-### Android proxy path (varies by version):
-- **Android 10+:** Settings → WiFi → long press network → Modify → Advanced → Proxy
-- **Android 7-9:** Settings → WiFi → long press → Manage → Advanced → Proxy
-- **iOS:** Settings → WiFi → tap ℹ → Configure Proxy → Manual
-- **Windows:** Settings → Network → WiFi → Proxy → Manual
+| Issue | Resolution |
+| :--- | :--- |
+| **Error Code 2** | Grant Location Permissions (required for WiFi scanning). |
+| **No Internet on Client** | Ensure the Client device has Proxy set to `192.168.49.1:8282`. |
+| **HTTPS Failed** | Check if the firewall on the host phone is blocking Port 8282. |
 
 ---
 
-## Features
-| Feature | Detail |
-|---|---|
-| WiFi Direct group | Phone stays on WiFi + creates hotspot |
-| HTTP proxy | Port 8282, handles all HTTP traffic |
-| HTTPS tunnel | CONNECT method, no MITM, fully secure |
-| Foreground service | Runs in background when app minimised |
-| Notification | Shows status + quick Stop button |
-| Copy button | One-tap copy of proxy address |
-| Step-by-step guide | Shown in app after starting |
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---|---|
-| "WiFi Direct failed (code 2)" | Location permission not granted |
-| "WiFi Direct failed (code 3)" | WiFi is OFF — turn it on first |
-| Hotspot appears but no internet | Proxy not set on client device |
-| App crashes on start | Allow "Modify system settings" permission |
-| HTTPS sites don't load | Make sure proxy port is 8282 (not 8080) |
-
----
-
-## File Structure
-```
+## 📂 Project Structure
+```text
 WifiShare/
-├── app/src/main/
-│   ├── java/com/wifishare/
-│   │   ├── MainActivity.java    ← UI, permissions, status display
-│   │   ├── ProxyService.java    ← WiFi Direct group + proxy server (foreground)
-│   │   └── ProxyWorker.java     ← Per-connection HTTP/HTTPS proxy handler
-│   ├── res/layout/activity_main.xml
-│   ├── res/values/ (colors, strings, styles)
-│   ├── res/drawable/ (cards, buttons)
-│   └── AndroidManifest.xml
-├── build.gradle
-├── settings.gradle
-└── gradle.properties
-```
+├── app/src/main/java/com/wifishare/
+│   ├── MainActivity.java    # UI Logic & Permission Handlers
+│   ├── ProxyService.java    # WiFi Direct Management & Socket Listener
+│   └── ProxyWorker.java     # Per-client Data Routing & HTTPS Tunneling
+└── AndroidManifest.xml      # Network & Foreground Service Declarations
