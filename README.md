@@ -37,8 +37,6 @@ The app utilizes a multithreaded architecture to ensure the UI remains responsiv
 
 ---
 
----
-
 ## 🔒 Security & Privacy Architecture
 
 In network-heavy applications, security is paramount. This project implements several layers of protection:
