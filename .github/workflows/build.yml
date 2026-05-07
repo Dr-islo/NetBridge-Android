@@ -5,9 +5,6 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,11 +13,11 @@ jobs:
 
       # 1. Check out your code
       - name: Checkout code
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       # 2. Set up Java 17
       - name: Set up JDK 17
-        uses: actions/setup-java@v4.7.0
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -38,7 +35,7 @@ jobs:
 
       # 4. Cache Gradle
       - name: Cache Gradle
-        uses: actions/cache@v4.2.3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -72,7 +69,7 @@ jobs:
 
       # 7. Upload APK artifact
       - name: Upload APK
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v4
         with:
           name: WifiShare-debug
           path: app/build/outputs/apk/debug/app-debug.apk
