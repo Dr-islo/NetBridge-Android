@@ -23,14 +23,14 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="📡  WiFi Share"
+                android:text="WiFi Share"
                 android:textSize="24sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"/>
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="WiFi tethering via WiFi Direct + Proxy"
+                android:text="Turn your phone into a WiFi router"
                 android:textSize="13sp"
                 android:textColor="#BBDEFB"
                 android:layout_marginTop="2dp"/>
@@ -77,7 +77,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="PASSWORD  (blank = open, or min 8 chars)"
+                android:text="PASSWORD  (blank = uses 12345678 default, or set min 8 chars)"
                 android:textSize="10sp"
                 android:letterSpacing="0.12"
                 android:textColor="#9E9E9E"
@@ -92,7 +92,7 @@
                 android:inputType="textPassword"
                 android:textSize="15sp"
                 android:textColor="#212121"
-                android:hint="Password (optional)"/>
+                android:hint="Password (min 8 chars if set)"/>
         </LinearLayout>
 
         <!-- ── Status card ── -->
@@ -117,13 +117,13 @@
                 android:id="@+id/tvStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🔴  Sharing is STOPPED"
+                android:text="Sharing is STOPPED"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="#F44336"/>
         </LinearLayout>
 
-        <!-- ── Proxy info card (hidden until started) ── -->
+        <!-- ── Connection info card (hidden until started) ── -->
         <LinearLayout
             android:id="@+id/cardProxy"
             android:layout_width="match_parent"
@@ -134,10 +134,47 @@
             android:layout_marginBottom="14dp"
             android:visibility="gone">
 
+            <!-- Step 1: Hotspot credentials -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="PROXY ADDRESS  (copy &amp; share)"
+                android:text="STEP 1 — CONNECT TO THIS HOTSPOT"
+                android:textSize="10sp"
+                android:letterSpacing="0.12"
+                android:textColor="#A5D6A7"
+                android:layout_marginBottom="6dp"/>
+
+            <TextView
+                android:id="@+id/tvHotspotSsid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="4dp"/>
+
+            <TextView
+                android:id="@+id/tvHotspotPass"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textSize="14sp"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="14dp"/>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#66BB6A"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Step 2: Proxy (manual) -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STEP 2A — MANUAL PROXY  (Host : Port)"
                 android:textSize="10sp"
                 android:letterSpacing="0.12"
                 android:textColor="#A5D6A7"
@@ -148,7 +185,7 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginBottom="14dp">
+                android:layout_marginBottom="12dp">
 
                 <TextView
                     android:id="@+id/tvProxyInfo"
@@ -156,7 +193,7 @@
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
                     android:text="192.168.49.1:8282"
-                    android:textSize="22sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
                     android:fontFamily="monospace"/>
@@ -173,14 +210,62 @@
                     android:paddingRight="12dp"/>
             </LinearLayout>
 
+            <!-- Step 2B: PAC auto-config URL -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STEP 2B — AUTO-CONFIG URL  (easier — paste in WiFi proxy settings)"
+                android:textSize="10sp"
+                android:letterSpacing="0.12"
+                android:textColor="#A5D6A7"
+                android:layout_marginBottom="6dp"/>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="14dp">
+
+                <TextView
+                    android:id="@+id/tvPacUrl"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text=""
+                    android:textSize="13sp"
+                    android:textColor="#FFFFFF"
+                    android:fontFamily="monospace"/>
+
+                <Button
+                    android:id="@+id/btnCopyPacUrl"
+                    android:layout_width="wrap_content"
+                    android:layout_height="36dp"
+                    android:text="Copy"
+                    android:textSize="12sp"
+                    android:textColor="#2E7D32"
+                    android:background="@drawable/btn_copy"
+                    android:paddingLeft="12dp"
+                    android:paddingRight="12dp"/>
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#66BB6A"
+                android:layout_marginBottom="12dp"/>
+
+            <!-- Instructions -->
             <TextView
                 android:id="@+id/tvClientsLabel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text=""
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:textColor="#C8E6C9"
                 android:lineSpacingExtra="3dp"/>
+
         </LinearLayout>
 
         <!-- ── Big toggle button ── -->
@@ -188,7 +273,7 @@
             android:id="@+id/btnToggle"
             android:layout_width="match_parent"
             android:layout_height="56dp"
-            android:text="▶  Start Sharing"
+            android:text="Start Sharing"
             android:textSize="16sp"
             android:textStyle="bold"
             android:textColor="#FFFFFF"
@@ -198,7 +283,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="ℹ️  WiFi stays on. Other devices connect to the hotspot, then set proxy Host &amp; Port in their WiFi advanced settings."
+            android:text="Your WiFi stays on. Other devices connect to the hotspot, then configure the proxy in their WiFi settings. Open http://192.168.49.1:8080/ on the other phone for step-by-step instructions."
             android:textSize="12sp"
             android:textColor="#9E9E9E"
             android:gravity="center"

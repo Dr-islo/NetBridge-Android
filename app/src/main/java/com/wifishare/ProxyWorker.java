@@ -33,7 +33,6 @@ public class ProxyWorker implements Runnable {
             InputStream  clientIn  = cs.getInputStream();
             OutputStream clientOut = cs.getOutputStream();
 
-            // Read the first line of the HTTP request
             String firstLine = readLine(clientIn);
             if (firstLine == null || firstLine.isEmpty()) return;
 
@@ -52,64 +51,66 @@ public class ProxyWorker implements Runnable {
     // ── HTTPS CONNECT tunnel ──────────────────────────────────────
     private void handleConnect(String firstLine, InputStream clientIn, OutputStream clientOut)
             throws IOException {
-        // CONNECT host:port HTTP/1.1
+        // "CONNECT host:port HTTP/1.1"
         String[] parts = firstLine.split(" ");
         if (parts.length < 2) return;
         String[] hostPort = parts[1].split(":");
         String host = hostPort[0];
-        int    port = hostPort.length > 1 ? Integer.parseInt(hostPort[1]) : 443;
+        int    port = hostPort.length > 1 ? safeParseInt(hostPort[1], 443) : 443;
 
-        // Drain remaining headers
         drainHeaders(clientIn);
 
-        // Connect to target
         try (Socket remote = new Socket()) {
             remote.connect(new InetSocketAddress(host, port), TIMEOUT_MS);
             remote.setSoTimeout(TIMEOUT_MS);
 
             // Tell client tunnel is ready
-            PrintWriter pw = new PrintWriter(new OutputStreamWriter(clientOut));
-            pw.print("HTTP/1.1 200 Connection Established\r\n\r\n");
-            pw.flush();
+            clientOut.write("HTTP/1.1 200 Connection Established\r\n\r\n".getBytes());
+            clientOut.flush();
 
-            // Bidirectional pipe
             pipe(clientIn, clientOut, remote.getInputStream(), remote.getOutputStream());
         } catch (Exception e) {
-            // Send 502 if can't connect
-            clientOut.write("HTTP/1.1 502 Bad Gateway\r\n\r\n".getBytes());
+            try { clientOut.write("HTTP/1.1 502 Bad Gateway\r\n\r\n".getBytes()); }
+            catch (IOException ignored) {}
         }
     }
 
     // ── Plain HTTP ────────────────────────────────────────────────
     private void handleHttp(String firstLine, InputStream clientIn, OutputStream clientOut)
             throws IOException {
-        // GET http://example.com/path HTTP/1.1
+        // "GET http://example.com/path HTTP/1.1"
         String[] tokens = firstLine.split(" ");
         if (tokens.length < 3) return;
 
-        String method = tokens[0];
-        String urlStr = tokens[1];
+        String method  = tokens[0];
+        String urlStr  = tokens[1];
         String version = tokens[2];
 
-        // Read all headers from client
+        // Read headers, tracking Host and Content-Length
         StringBuilder headerBuf = new StringBuilder();
         String line;
-        String host = null;
-        int    port = 80;
+        String host          = null;
+        int    port          = 80;
+        long   contentLength = -1;
+
         while (!(line = readLine(clientIn)).isEmpty()) {
-            if (line.toLowerCase().startsWith("host:")) {
+            String lower = line.toLowerCase();
+            if (lower.startsWith("host:")) {
                 String hostVal = line.substring(5).trim();
                 if (hostVal.contains(":")) {
-                    String[] hp = hostVal.split(":");
+                    String[] hp = hostVal.split(":", 2);
                     host = hp[0];
-                    port = Integer.parseInt(hp[1]);
+                    port = safeParseInt(hp[1], 80);
                 } else {
                     host = hostVal;
                 }
+            } else if (lower.startsWith("content-length:")) {
+                try { contentLength = Long.parseLong(line.substring(15).trim()); }
+                catch (NumberFormatException ignored) {}
             }
-            // Remove proxy-specific headers
-            if (!line.toLowerCase().startsWith("proxy-connection:") &&
-                !line.toLowerCase().startsWith("proxy-authorization:")) {
+            // Strip proxy-specific headers
+            if (!lower.startsWith("proxy-connection:") &&
+                !lower.startsWith("proxy-authorization:")) {
                 headerBuf.append(line).append("\r\n");
             }
         }
@@ -125,7 +126,6 @@ public class ProxyWorker implements Runnable {
             if (u.getQuery() != null) path += "?" + u.getQuery();
         } catch (Exception ignored) {}
 
-        // Connect to target server
         try (Socket remote = new Socket()) {
             remote.connect(new InetSocketAddress(host, port), TIMEOUT_MS);
             remote.setSoTimeout(TIMEOUT_MS);
@@ -133,25 +133,34 @@ public class ProxyWorker implements Runnable {
             OutputStream remoteOut = remote.getOutputStream();
             InputStream  remoteIn  = remote.getInputStream();
 
-            // Forward request line
-            String reqLine = method + " " + path + " " + version + "\r\n";
-            remoteOut.write(reqLine.getBytes());
+            // Forward request line + headers
+            remoteOut.write((method + " " + path + " " + version + "\r\n").getBytes());
             remoteOut.write(headerBuf.toString().getBytes());
             remoteOut.write("Connection: close\r\n\r\n".getBytes());
 
-            // Read possible request body (for POST etc.)
-            // Forward available bytes
-            byte[] buf = new byte[BUF_SIZE];
-            int avail = clientIn.available();
-            while (avail > 0) {
-                int n = clientIn.read(buf, 0, Math.min(avail, BUF_SIZE));
-                if (n < 0) break;
-                remoteOut.write(buf, 0, n);
-                avail = clientIn.available();
+            // Forward request body using Content-Length for accuracy
+            if (contentLength > 0) {
+                byte[] buf = new byte[BUF_SIZE];
+                long remaining = contentLength;
+                while (remaining > 0) {
+                    int n = clientIn.read(buf, 0, (int) Math.min(remaining, BUF_SIZE));
+                    if (n < 0) break;
+                    remoteOut.write(buf, 0, n);
+                    remaining -= n;
+                }
+            } else if (contentLength < 0) {
+                // Unknown body size: forward whatever is immediately available
+                int avail = clientIn.available();
+                if (avail > 0) {
+                    byte[] buf = new byte[BUF_SIZE];
+                    int n = clientIn.read(buf, 0, Math.min(avail, BUF_SIZE));
+                    if (n > 0) remoteOut.write(buf, 0, n);
+                }
             }
             remoteOut.flush();
 
             // Stream response back to client
+            byte[] buf = new byte[BUF_SIZE];
             int n;
             while ((n = remoteIn.read(buf)) > 0) {
                 clientOut.write(buf, 0, n);
@@ -163,7 +172,7 @@ public class ProxyWorker implements Runnable {
     // ── Bidirectional pipe for CONNECT tunnels ─────────────────────
     private void pipe(InputStream c2s, OutputStream c2sOut,
                       InputStream s2c, OutputStream s2cOut) {
-        Thread t = new Thread(() -> {
+        Thread serverToClient = new Thread(() -> {
             try {
                 byte[] buf = new byte[BUF_SIZE];
                 int n;
@@ -173,7 +182,9 @@ public class ProxyWorker implements Runnable {
                 }
             } catch (Exception ignored) {}
         });
-        t.start();
+        serverToClient.setDaemon(true);
+        serverToClient.start();
+
         try {
             byte[] buf = new byte[BUF_SIZE];
             int n;
@@ -182,7 +193,8 @@ public class ProxyWorker implements Runnable {
                 s2cOut.flush();
             }
         } catch (Exception ignored) {}
-        try { t.join(3000); } catch (Exception ignored) {}
+
+        try { serverToClient.join(5000); } catch (Exception ignored) {}
     }
 
     // ── Helpers ───────────────────────────────────────────────────
@@ -197,9 +209,11 @@ public class ProxyWorker implements Runnable {
     }
 
     private void drainHeaders(InputStream in) throws IOException {
-        String line;
-        while (!(line = readLine(in)).isEmpty()) {
-            // discard
-        }
+        while (!readLine(in).isEmpty()) { /* discard */ }
+    }
+
+    private static int safeParseInt(String s, int defaultVal) {
+        try { return Integer.parseInt(s.trim()); }
+        catch (NumberFormatException e) { return defaultVal; }
     }
 }
