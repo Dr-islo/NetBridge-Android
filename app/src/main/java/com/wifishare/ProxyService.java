@@ -195,10 +195,10 @@ public class ProxyService extends Service {
         }
 
         // ── Always start proxy + config servers ───────────────────
-        // In NAT mode the proxy is a transparent fallback; in non-root
-        // mode it is the primary path.
-        startProxyServerInternal();
+        // Config server is submitted to the thread pool and returns immediately.
+        // Proxy server must be called last — its accept loop blocks this thread.
         startConfigServerInternal();
+        startProxyServerInternal();
     }
 
     // ── Proxy server (port 8282) ──────────────────────────────────
@@ -349,8 +349,8 @@ public class ProxyService extends Service {
                "</div>" +
                "<div class='card'>" +
                "<h2>WhatsApp / Signal</h2>" +
-               "<p>WhatsApp → Settings → Privacy → Advanced → Proxy → Enable</p>" +
-               "<p>Server: <code>" + currentIp + "</code>&nbsp;&nbsp;Port: <code>" + PROXY_PORT + "</code></p>" +
+               "<p><b>Do NOT use WhatsApp's built-in Proxy setting</b> — it expects a raw TCP relay, not an HTTP proxy, and will get stuck connecting.</p>" +
+               "<p>Instead, set the <b>system WiFi proxy</b> (step above). Once the system proxy is set, WhatsApp and all other apps work automatically.</p>" +
                "</div>";
 
         return "<!DOCTYPE html><html><head>" +
