@@ -142,13 +142,19 @@ public class ProxyService extends Service {
             if (ssid == null) ssid = "DIRECT-" + pendingSsid;
             activeGroupSsid = ssid;
 
-            // getPassphrase() is Android 10+ API
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 String pp = group.getPassphrase();
                 activeGroupPass = (pp != null && !pp.isEmpty()) ? pp : "12345678";
             } else {
-                // On Android < 10 the system picks credentials; show our intended pass
-                activeGroupPass = pendingPass.isEmpty() ? "12345678" : pendingPass;
+                // getPassphrase() is hidden API pre-Q but exists in the class — use reflection
+                // to read the real system-assigned password instead of guessing
+                String reflected = null;
+                try {
+                    java.lang.reflect.Method m = group.getClass().getMethod("getPassphrase");
+                    reflected = (String) m.invoke(group);
+                } catch (Exception ignored) {}
+                activeGroupPass = (reflected != null && !reflected.isEmpty()) ? reflected
+                        : (pendingPass.isEmpty() ? "12345678" : pendingPass);
             }
 
             currentIp    = "192.168.49.1";
